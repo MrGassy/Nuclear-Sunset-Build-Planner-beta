@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NUCLEAR_SUNSET.EXE // TTW_EDITION</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="theme-cw" oninput="triggerAutosave()">
+
+<!-- INTENSE TRAINING MODAL -->
+<div class="modal-overlay" id="it-modal">
+    <div class="modal-box">
+        <h2>INTENSE TRAINING</h2>
+        <p>Select which S.P.E.C.I.A.L. attribute to increase by 1 point.</p>
+        <div class="special-picker-grid" id="it-picker-grid"></div>
+        <button class="modal-cancel-btn" onclick="closeITModal()">CANCEL</button>
+    </div>
+</div>
+
+<!-- LEVEL UP MODAL -->
+<div class="modal-overlay" id="lvlup-modal">
+    <div class="modal-box lvlup-box">
+        <div class="lvlup-header">
+            <div class="lvlup-title">⬆ LEVEL UP: LVL <span id="lvlup-level-from">1</span> → <span id="lvlup-level-to">2</span></div>
+            <div class="lvlup-pts-bar">
+                <span>SKILL POINTS:</span>
+                <span class="lvlup-pts-num"><span id="lvlup-pts-left">0</span> / <span id="lvlup-pts-total">0</span></span>
+            </div>
+            <div style="font-size:0.62rem;opacity:0.55;margin-top:3px;">★ = TAGGED SKILL — HIGHLIGHTED FOR REFERENCE (1 PT SPENT = 1 PT GAINED)</div>
+        </div>
+        <div id="lvlup-skill-grid" class="lvlup-skill-grid"></div>
+        <div class="lvlup-actions">
+            <button class="action-btn" style="flex:1;margin-bottom:0;" onclick="confirmLevelUp()">✓ CONFIRM LEVEL UP</button>
+            <button class="modal-cancel-btn" style="flex:0 0 120px;" onclick="closeLevelUpModal()">CANCEL</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- TRAIT SELECTION MODAL -->
+<div class="modal-overlay" id="trait-modal" style="display:none; align-items:flex-start; padding-top:4vh;">
+  <div class="lvlup-box" style="max-width:700px; width:95vw; max-height:90vh; overflow-y:auto;">
+    <div class="lvlup-header">
+      <span style="font-size:1rem; letter-spacing:0.15em; color:#c8ffd4;">SELECT TRAIT</span>
+      <button class="lvlup-close" onclick="closeTraitModal()">✕</button>
+    </div>
+    <input type="text" id="trait-modal-search" class="pip-search" placeholder="SEARCH TRAITS..."
+      oninput="renderTraitGrid(this.value)" style="margin:10px 16px; width:calc(100% - 32px); box-sizing:border-box;">
+    <div id="trait-modal-grid" style="padding:0 16px 16px;"></div>
+  </div>
+</div>
+
+<!-- REWARD PERK MODAL -->
+<div class="modal-overlay" id="reward-perk-modal" style="display:none; align-items:flex-start; padding-top:4vh;">
+  <div class="lvlup-box" style="max-width:700px; width:95vw; max-height:90vh; overflow-y:auto;">
+    <div class="lvlup-header">
+      <span style="font-size:1rem; letter-spacing:0.15em; color:#ffd080;">SELECT REWARD PERK</span>
+      <button class="lvlup-close" onclick="closeRewardPerkModal()">✕</button>
+    </div>
+    <input type="text" id="reward-perk-search" class="pip-search" placeholder="SEARCH REWARD PERKS..."
+      oninput="renderRewardPerkGrid(this.value)" style="margin:10px 16px; width:calc(100% - 32px); box-sizing:border-box;">
+    <div id="reward-perk-modal-grid" style="padding:0 16px 16px;"></div>
+  </div>
+</div>
+
+<!-- INTERNALIZED TRAITS MODAL -->
+<div class="modal-overlay" id="internalized-modal" style="display:none; align-items:flex-start; padding-top:4vh;">
+  <div class="lvlup-box" style="max-width:700px; width:95vw; max-height:90vh; overflow-y:auto;">
+    <div class="lvlup-header">
+      <span style="font-size:1rem; letter-spacing:0.15em; color:#c8a0ff;">SELECT INTERNALIZED TRAIT</span>
+      <button class="lvlup-close" onclick="closeInternalizedModal()">✕</button>
+    </div>
+    <input type="text" id="internalized-search" class="pip-search" placeholder="SEARCH..."
+      oninput="renderInternalizedGrid(this.value)" style="margin:10px 16px; width:calc(100% - 32px); box-sizing:border-box;">
+    <div id="internalized-modal-grid" style="padding:0 16px 16px;"></div>
+  </div>
+</div>
+<div class="wrapper">
+    <header>
+        <div class="hc-alert-bar" id="hc-banner">HARDERCORE_OVERRIDE_ACTIVE</div>
+        <div class="header-controls">
+            <div class="os-title">NUCLEAR_SUNSET.EXE // TTW_EDITION</div>
+            <div class="settings-block">
+                <div class="toggle-group"><button id="btn-cw" class="active" onclick="setOrigin('CW')">CAPITAL WASTELAND</button><button id="btn-mw" onclick="setOrigin('MW')">MOJAVE DESERT</button></div>
+                <div class="toggle-group"><button id="m-std" class="active" onclick="setMode('std')">STANDARD</button><button id="m-hc" onclick="setMode('hc')">HARDERCORE</button></div>
+                <button onclick="purgeMemory()" class="nuke-btn" title="PURGE ALL MEMORY">☢</button>
+            </div>
+        </div>
+    </header>
+
+    <section class="left-panel">
+        <div class="scroll-v">
+            <div class="left-identity-block">
+                <div class="left-label">SUBJECT</div>
+                <input type="text" id="char-name" placeholder="DESIGNATION..." class="char-name-input">
+            </div>
+            <div class="special-header-row">
+                <span class="section-label">S.P.E.C.I.A.L.</span>
+                <span class="pts-badge">PTS <span id="pts-left">0</span></span>
+            </div>
+            <div id="special-list" class="special-compact-grid"></div>
+        </div>
+    </section>
+
+    <section>
+        <div class="tab-nav">
+            <button onclick="showTab('ov')" id="tab-btn-ov" class="active">OVERVIEW</button>
+            <button onclick="showTab('prog')" id="tab-btn-prog">PROGRESSION</button>
+            <button onclick="showTab('perks')" id="tab-btn-perks">ALL PERKS</button>
+            <button onclick="showTab('gear')" id="tab-btn-gear">LOADOUT</button>
+            <button onclick="showTab('quests')" id="tab-btn-quests">QUESTS</button>
+            <button onclick="showTab('coll')" id="tab-btn-coll">COLLECTIBLES</button>
+            <button onclick="showTab('uni')" id="tab-btn-uni">UNIQUES</button>
+        </div>
+
+        <!-- PERK LEVEL UP PROMPT BANNER -->
+        <div id="perk-lvlup-banner" style="display:none; align-items:center; padding:8px 16px; background:rgba(var(--pip-rgb,100,200,100),0.12); border-bottom:1px solid var(--pip-color); color:var(--pip-color);"></div>
+
+        <div id="tab-ov" class="tab-content scroll-v">
+            <!-- CHAR BANNER -->
+            <div class="char-banner">
+                <div id="ov-name" class="char-banner-name">NO_ID</div>
+                <div class="char-banner-meta">
+                    <div id="ov-spec" class="char-banner-spec"></div>
+                </div>
+            </div>
+
+            <!-- MAIN CHAR SHEET: 3 columns -->
+            <div class="char-sheet-cols">
+
+                <!-- COL 1: TAGS -->
+                <div class="char-sheet-col">
+                    <div class="cs-header">
+                        <span class="cs-label">TAGS</span>
+                        <span class="cs-sublabel">MAX 3</span>
+                    </div>
+                    <div id="tag-area" class="tag-grid"></div>
+                </div>
+
+                <!-- COL 2: TRAITS -->
+                <div class="char-sheet-col">
+                    <div class="cs-header">
+                        <span class="cs-label" id="trait-header">TRAITS</span>
+                        <button class="cs-add-btn" onclick="openTraitModal(null)">+ ADD</button>
+                    </div>
+                    <div id="trait-list" style="display:none;"></div>
+                    <div id="ov-traits-inline"></div>
+                    <div id="ov-traits-empty" style="font-size:0.58rem; color:rgba(255,255,255,0.2); padding:4px 0; letter-spacing:0.04em; display:none;">NO TRAITS SELECTED</div>
+                </div>
+
+                <!-- COL 3: SKILLS + LVL UP -->
+                <div class="char-sheet-col char-sheet-skills-col">
+                    <div class="cs-header">
+                        <span class="cs-label">SKILLS</span>
+                        <button id="lvlup-open-btn" class="lvlup-open-btn lvlup-btn-locked" onclick="openLevelUpModal()">
+                            ⬆ LVL <span id="char-level-display">1</span>
+                            <span id="lvlup-pts-preview" class="lvlup-pts-preview"></span>
+                        </button>
+                    </div>
+                    <div id="lvlup-not-ready" style="display:none;font-size:0.65rem;color:#ff6060;margin-bottom:6px;padding:4px 8px;border:1px solid rgba(255,80,80,0.4);background:rgba(255,0,0,0.06);">⚠ SELECT 3 TAGS TO UNLOCK</div>
+                    <div id="skill-list" class="skill-list-2col"></div>
+                </div>
+
+            </div>
+
+            <!-- SUMMARY CARDS -->
+            <div class="ov-grid" style="margin-top:16px;">
+                <div>
+                    <div class="ov-card"><span class="ov-sub">GEAR_LIST</span><div id="ov-gear"></div></div>
+                    <div class="ov-card" style="margin-top:8px;"><span class="ov-sub">TAGS_ACTIVE</span><div id="ov-tags"></div></div>
+                    <div class="ov-card" style="margin-top:8px;"><span class="ov-sub">TRAITS_ACTIVE</span><div id="ov-traits"></div></div>
+                    <div class="ov-card" style="margin-top:8px;"><span class="ov-sub" style="color:#7ecfff;">IMPLANTS</span><div id="ov-implants" style="font-size:0.65rem; color:#7ecfff;"></div></div>
+                </div>
+                <div class="ov-card"><span class="ov-sub">PERK_EVOLUTION</span><div id="ov-perks"></div></div>
+            </div>
+        </div>
+
+        <div id="tab-prog" class="tab-content scroll-v" style="display:none;">
+            <!-- LEVEL PROGRESSION (perks + milestone traits) -->
+            <div id="prog-list" class="prog-grid"></div>
+
+            <!-- BONUS PERKS -->
+            <div class="prog-section-block" style="margin-top:16px;border-top:1px solid rgba(100,200,120,0.15);padding-top:14px;">
+                <div class="prog-section-hdr">
+                    <h2 class="prog-section-title">BONUS PERKS</h2>
+                    <button class="action-btn prog-hdr-btn" onclick="addExtraPerk()">+ ADD</button>
+                </div>
+                <div id="extra-perk-list" class="prog-grid"></div>
+            </div>
+
+            <!-- REWARD PERKS -->
+            <div class="prog-section-block" style="margin-top:16px;border-top:1px solid rgba(255,180,50,0.2);padding-top:14px;">
+                <div class="prog-section-hdr">
+                    <h2 class="prog-section-title" style="color:#ffd080;">REWARD PERKS</h2>
+                    <button class="action-btn prog-hdr-btn" onclick="openRewardPerkSearch()" style="border-color:rgba(255,180,50,0.4);color:#ffd080;">+ ADD</button>
+                </div>
+                <div id="reward-perks-list" class="prog-grid"></div>
+            </div>
+
+            <!-- INTERNALIZED TRAITS -->
+            <div class="prog-section-block" style="margin-top:16px;border-top:1px solid rgba(150,80,255,0.2);padding-top:14px;">
+                <div class="prog-section-hdr">
+                    <h2 class="prog-section-title" style="color:#c8a0ff;">INTERNALIZED TRAITS</h2>
+                    <button class="action-btn prog-hdr-btn" onclick="openInternalizedModal()" style="border-color:rgba(150,80,255,0.4);color:#c8a0ff;">+ ADD</button>
+                </div>
+                <div id="internalized-traits-list" class="prog-grid"></div>
+            </div>
+
+            <!-- IMPLANTS -->
+            <div class="prog-section-block" style="margin-top:16px;border-top:1px solid rgba(100,180,255,0.2);padding-top:14px;padding-bottom:20px;">
+                <div class="prog-section-hdr">
+                    <h2 class="prog-section-title" style="color:#80c8ff;">IMPLANTS</h2>
+                    <span id="implants-limit-display" style="font-size:0.62rem;color:#80c8ff;opacity:0.75;letter-spacing:0.07em;">NV CLINIC: 0 / 5 (END LIMIT)</span>
+                </div>
+                <div id="implant-limit-warning" style="display:none;background:rgba(255,80,80,0.12);border:1px solid rgba(255,80,80,0.35);color:#ff8080;padding:5px 10px;font-size:0.68rem;margin-bottom:8px;letter-spacing:0.04em;">⚠ IMPLANT LIMIT REACHED — INCREASE ENDURANCE OR REMOVE AN IMPLANT</div>
+                <div id="implants-list"></div>
+            </div>
+        </div>
+
+        <div id="tab-perks" class="tab-content scroll-v" style="display:none;">
+            <div class="perks-controls">
+                <input type="text" id="perk-search-bar" class="pip-search" placeholder="SEARCH ALL PERKS..." oninput="renderAllPerks()" style="margin-bottom:0; flex:1;">
+                <button id="toggle-eligible" class="sort-btn" onclick="toggleEligibleFilter()" title="Show only perks you currently qualify for">ELIGIBLE ONLY</button>
+            </div>
+            <div class="perks-controls" style="margin-bottom:10px;">
+                <span style="font-size:0.65rem; font-weight:bold; opacity:0.7; margin-right:5px;">SORT:</span>
+                <div class="perks-sort-group">
+                    <button class="sort-btn active" id="sort-az" onclick="setSort('az')">A–Z</button>
+                    <button class="sort-btn" id="sort-lvl" onclick="setSort('lvl')">BY LEVEL</button>
+                    <button class="sort-btn" id="sort-spec" onclick="setSort('spec')">BY S.P.E.C.I.A.L.</button>
+                </div>
+            </div>
+            <div id="all-perks-list"></div>
+        </div>
+
+        <div id="tab-gear" class="tab-content scroll-v" style="display:none;">
+            <div class="gear-tab-header">
+                <div class="gear-stat-bar">
+                    <div class="gear-stat-item"><span class="gear-stat-label">WEAPONS</span><span class="gear-stat-val" id="gear-weapon-count">0</span></div>
+                    <div class="gear-stat-sep">|</div>
+                    <div class="gear-stat-item"><span class="gear-stat-label">APPAREL</span><span class="gear-stat-val" id="gear-armor-count">0</span></div>
+                </div>
+            </div>
+            <div class="gear-split-grid">
+                <!-- WEAPONS -->
+                <div class="gear-section">
+                    <div class="gear-section-header">
+                        <div class="gear-section-icon">⚔</div>
+                        <span class="gear-section-title">WEAPONS</span>
+                        <button class="gear-add-btn" onclick="addWeapon()">+ ADD WEAPON</button>
+                    </div>
+                    <div id="weapon-list" class="gear-list"></div>
+                    <div id="weapon-empty" class="gear-empty-state">NO WEAPONS EQUIPPED — ADD YOUR FIRST WEAPON ABOVE</div>
+                </div>
+                <!-- APPAREL -->
+                <div class="gear-section">
+                    <div class="gear-section-header">
+                        <div class="gear-section-icon">🛡</div>
+                        <span class="gear-section-title">APPAREL</span>
+                        <button class="gear-add-btn" onclick="addArmor()">+ ADD APPAREL</button>
+                    </div>
+                    <div id="armor-list" class="gear-list"></div>
+                    <div id="armor-empty" class="gear-empty-state">NO APPAREL EQUIPPED — ADD YOUR FIRST PIECE ABOVE</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-quests" class="tab-content scroll-v" style="display:none;">
+            <input type="text" id="quest-search-bar" class="pip-search" placeholder="SEARCH QUESTS..." oninput="searchQuests()">
+            <div id="quest-list-container"></div>
+        </div>
+        
+        <div id="tab-coll" class="tab-content scroll-v" style="display:none;"><div id="coll-list"></div></div>
+
+        <div id="tab-uni" class="tab-content scroll-v" style="display:none;">
+            <h2>⚔ UNIQUE WEAPONS</h2>
+            <input type="text" id="uni-search-bar" class="pip-search" placeholder="SEARCH UNIQUE WEAPONS..." oninput="searchUniques()">
+            <div id="unique-weapon-checklist"></div>
+            <h2 style="margin-top:20px;">🛡 UNIQUE ARMOR &amp; APPAREL</h2>
+            <input type="text" id="uni-armor-search-bar" class="pip-search" placeholder="SEARCH UNIQUE ARMOR..." oninput="searchUniqueArmor()">
+            <div id="unique-armor-checklist"></div>
+        </div>
+    </section>
+
+    <section>
+        <h2 style="margin-top:0;">DWELLER_NOTES.LOG</h2>
+        <div style="display:flex; gap:5px; margin-bottom:10px;">
+            <button class="action-btn" style="margin-bottom:0; font-size:0.65rem;" onclick="exportJSON()">💾 SAVE_JSON</button>
+            <button class="action-btn" style="margin-bottom:0; font-size:0.65rem;" onclick="document.getElementById('import-file').click()">📂 LOAD_JSON</button>
+            <input type="file" id="import-file" style="display:none" onchange="importJSON(event)">
+        </div>
+        <textarea id="user-notes" placeholder="--- INPUT LOG DATA ---"></textarea>
+        <div id="sync-status" style="font-size:0.6rem; text-align:right; opacity:0.6; margin-top:5px;">SYSTEM_SYNCED</div>
+        
+        <div class="credits-box">
+            <div class="sticky-note" id="sysop-note" style="display:block; background:#ff4; color:#000;">
+                !! STICKY NOTE !!<br>9:13AM, October 23, 2077,
+                HARDERCORE.EXE HAS BEEN ACTIVATED! GOD HELP US ALL! F.A.O FINALCATALYST - VAULT-TEC R&D
+            </div>
+            <b>SOURCE: <a href="https://nuclearsunset.com" target="_blank" style="color:inherit;">NUCLEARSUNSET.COM</a></b><br>
+            TEAM: DARKSOLARLEGEND, ORGASMICSNEEZE, DOKTORAKCEL, LIME, FINALCATALYST.
+            <div style="font-size: 0.65rem; border-top:1px dotted var(--pip-color); margin-top:5px; padding-top:4px;"><b>CREATED AND MAINTAINED BY GASSY</b></div>
+        </div>
+    </section>
+</div>
+
+<script src="scripts.js"></script>
+</body>
+</html>
