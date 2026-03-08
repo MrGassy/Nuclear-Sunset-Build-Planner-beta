@@ -87,6 +87,33 @@
   </div>
 </div>
 
+<!-- IMPLANT PICKER MODAL -->
+<div class="modal-overlay" id="implant-modal" style="display:none; align-items:flex-start; padding-top:4vh;">
+  <div class="lvlup-box" style="max-width:700px; width:95vw; max-height:90vh; overflow-y:auto;">
+    <div class="lvlup-header">
+      <span style="font-size:1rem; letter-spacing:0.15em; color:#80d8ff;">SELECT IMPLANT</span>
+      <button class="lvlup-close" onclick="closeImplantModal()">✕</button>
+    </div>
+    <input type="text" id="implant-modal-search" class="pip-search" placeholder="SEARCH IMPLANTS..."
+      oninput="renderImplantModalGrid(this.value)" style="margin:10px 16px; width:calc(100% - 32px); box-sizing:border-box;">
+    <div id="implant-modal-grid" style="padding:0 16px 16px;"></div>
+  </div>
+</div>
+
+<!-- PERK ZOOM MODAL -->
+<div class="modal-overlay" id="perk-zoom-modal" style="display:none; align-items:center; justify-content:center;">
+  <div class="modal-box perk-zoom-box" style="max-width:600px; width:92vw;">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:14px; gap:12px;">
+      <div>
+        <div id="perk-zoom-name" style="font-size:1.1rem; font-weight:bold; color:var(--pip-color); letter-spacing:0.1em; margin-bottom:6px;"></div>
+        <div id="perk-zoom-req" style="font-size:0.72rem; color:#ffd700; letter-spacing:0.05em; font-weight:bold;"></div>
+      </div>
+      <button onclick="document.getElementById('perk-zoom-modal').style.display='none'" style="flex-shrink:0; background:none; border:1px solid rgba(255,80,80,0.4); color:rgba(255,80,80,0.8); padding:3px 10px; cursor:pointer; font-size:0.75rem;">✕</button>
+    </div>
+    <div id="perk-zoom-desc" style="font-size:0.9rem; line-height:1.7; color:var(--pip-color); opacity:0.9; border-top:1px solid rgba(255,255,255,0.1); padding-top:12px;"></div>
+  </div>
+</div>
+
 <!-- PERK PICKER MODAL (LEVEL UP) -->
 <div class="modal-overlay" id="perk-picker-modal" style="display:none; align-items:flex-start; padding-top:3vh;">
   <div class="lvlup-box perk-picker-box" style="max-width:960px; width:96vw; max-height:92vh; display:flex; flex-direction:column; overflow:hidden;">
@@ -110,7 +137,7 @@
 
 <div class="wrapper">
     <header>
-        <div class="hc-alert-bar" id="hc-banner">HARDERCORE_OVERRIDE_ACTIVE</div>
+        <div class="hc-alert-bar" id="hc-banner">⚠ HARDERCORE_OVERRIDE_ACTIVE — SYSTEM INTEGRITY COMPROMISED ⚠</div>
         <div class="header-controls">
             <div class="os-title">NUCLEAR_SUNSET.EXE // TTW_EDITION</div>
             <div class="settings-block">
@@ -138,12 +165,13 @@
     <section>
         <div class="tab-nav">
             <button onclick="showTab('ov')" id="tab-btn-ov" class="active">OVERVIEW</button>
-            <button onclick="showTab('prog')" id="tab-btn-prog">PROGRESSION</button>
+            <button onclick="showTab('prog')" id="tab-btn-prog">TRAITS &amp; IMPLANTS</button>
             <button onclick="showTab('perks')" id="tab-btn-perks">ALL PERKS</button>
             <button onclick="showTab('gear')" id="tab-btn-gear">LOADOUT</button>
             <button onclick="showTab('quests')" id="tab-btn-quests">QUESTS</button>
             <button onclick="showTab('coll')" id="tab-btn-coll">COLLECTIBLES</button>
             <button onclick="showTab('uni')" id="tab-btn-uni">UNIQUES</button>
+            <button onclick="showTab('skilllog')" id="tab-btn-skilllog">SKILL LOG</button>
         </div>
 
         <!-- PERK LEVEL UP PROMPT BANNER -->
@@ -173,12 +201,13 @@
                 <!-- COL 2: TRAITS -->
                 <div class="char-sheet-col">
                     <div class="cs-header">
-                        <span class="cs-label" id="trait-header">TRAITS</span>
+                        <span class="cs-label" id="trait-header">TRAITS <span id="hc-trait-counter" class="hc-trait-counter">0/5</span></span>
                         <div class="cs-trait-btns">
-                            <button class="cs-add-btn cs-start-trait-btn" title="ADD STARTING TRAIT (NO LIMIT)" onclick="openStartingTraitModal()">◈ STARTING</button>
+                            <button class="cs-add-btn cs-start-trait-btn" title="ADD STARTING TRAIT" onclick="openStartingTraitModal()">◈ STARTING</button>
                             <button class="cs-add-btn" title="ADD LEVEL-UP TRAIT SLOT" onclick="openTraitModal(null)">+ LEVEL</button>
                         </div>
                     </div>
+                    <div id="hc-trait-limit-warning" style="display:none; background:rgba(255,0,0,0.1); border-left:3px solid rgba(255,0,0,0.7); color:#ff6060; padding:5px 10px; font-size:0.72rem; margin-bottom:6px; letter-spacing:0.05em;">⚠ HARDERCORE LIMIT — MAX 5 STARTING TRAITS</div>
                     <div id="trait-list" style="display:none;"></div>
                     <div id="ov-traits-inline"></div>
                     <div id="ov-traits-empty" style="font-size:0.58rem; color:rgba(255,255,255,0.2); padding:4px 0; letter-spacing:0.04em; display:none;">NO TRAITS SELECTED</div>
@@ -207,22 +236,11 @@
                     <div class="ov-card" style="margin-top:8px;"><span class="ov-sub">TRAITS_ACTIVE</span><div id="ov-traits"></div></div>
                     <div class="ov-card" style="margin-top:8px;"><span class="ov-sub" style="color:#7ecfff;">IMPLANTS</span><div id="ov-implants" style="font-size:0.65rem; color:#7ecfff;"></div></div>
                 </div>
-                <div class="ov-card"><span class="ov-sub">PERK_EVOLUTION</span><div id="ov-perks"></div></div>
+                <div class="ov-card"><span class="ov-sub">PERK &amp; TRAIT LOG</span><div id="ov-perks"></div></div>
             </div>
         </div>
 
         <div id="tab-prog" class="tab-content scroll-v" style="display:none;">
-
-            <!-- LEGEND BAR -->
-            <div class="prog-legend-bar">
-                <span class="prog-legend-item pleg-perk">■ PERK</span>
-                <span class="prog-legend-item pleg-trait">■ LEVEL TRAIT SLOT</span>
-                <span class="prog-legend-item pleg-start-trait">■ STARTING TRAIT</span>
-                <span class="prog-legend-item pleg-bonus">■ BONUS PERK</span>
-                <span class="prog-legend-item pleg-reward">■ REWARD PERK</span>
-                <span class="prog-legend-item pleg-int">■ INTERNALIZED TRAIT</span>
-                <span class="prog-legend-item pleg-implant">■ IMPLANT</span>
-            </div>
 
             <!-- STARTING TRAITS -->
             <div class="prog-section-label plab-trait">
@@ -231,21 +249,6 @@
                 <button class="prog-section-btn psbtn-trait" onclick="openStartingTraitModal()">+ ADD</button>
             </div>
             <div id="starting-traits-list" class="starting-traits-wrap"></div>
-
-            <!-- LEVEL PERKS + TRAIT SLOTS -->
-            <div class="prog-section-label plab-perk">
-                <span class="prog-section-icon">⬆</span> LEVEL PROGRESSION
-                <span class="prog-section-sub">PERKS &amp; TRAIT MILESTONES — STARTING FROM LEVEL 2</span>
-            </div>
-            <div id="prog-list" class="prog-grid"></div>
-
-            <!-- BONUS PERKS -->
-            <div class="prog-section-label plab-bonus">
-                <span class="prog-section-icon">+</span> BONUS PERKS
-                <span class="prog-section-sub">EXTRA PERKS OUTSIDE LEVEL PROGRESSION</span>
-                <button class="prog-section-btn" onclick="addExtraPerk()">+ ADD</button>
-            </div>
-            <div id="extra-perk-list" class="prog-grid"></div>
 
             <!-- REWARD PERKS -->
             <div class="prog-section-label plab-reward">
@@ -266,13 +269,20 @@
             <!-- IMPLANTS -->
             <div class="prog-section-label plab-implant">
                 <span class="prog-section-icon">⚕</span> IMPLANTS
-                <span class="prog-section-sub" id="implants-limit-display">SPECIAL IMPLANTS: 0 / 5 (END LIMIT) — BODY &amp; BIG MT: UNLIMITED</span>
+                <span class="prog-section-sub" id="implants-limit-display">SPECIAL IMPLANTS: 0 / 5 — BODY &amp; BIG MT: UNLIMITED</span>
             </div>
-            <div id="implant-limit-warning" style="display:none; background:rgba(255,80,80,0.12); border-left:3px solid rgba(255,80,80,0.6); color:#ff8080; padding:8px 14px; font-size:0.68rem; margin:0 0 8px; letter-spacing:0.04em;">⚠ SPECIAL IMPLANT LIMIT REACHED — INCREASE ENDURANCE TO INSTALL MORE</div>
+            <div id="implant-limit-warning" style="display:none; background:rgba(255,80,80,0.12); border-left:3px solid rgba(255,80,80,0.6); color:#ff8080; padding:8px 14px; font-size:0.75rem; margin:0 0 8px; letter-spacing:0.04em;">⚠ SPECIAL IMPLANT LIMIT REACHED — INCREASE ENDURANCE TO INSTALL MORE</div>
             <div id="implants-list"></div>
 
         </div>
 
+        <!-- GHOST CONTAINER: prog-list and extra-perk-list stay in DOM for level-up system and save/load, but are not shown in any tab -->
+        <div id="ghost-prog-store" style="display:none;" aria-hidden="true">
+            <div id="prog-list" class="prog-grid"></div>
+            <div id="extra-perk-list" class="prog-grid"></div>
+        </div>
+
+        <!-- PERK LEVEL UP BANNER (kept here, shown above tab content) -->
         <div id="tab-perks" class="tab-content scroll-v" style="display:none;">
             <div class="perks-controls">
                 <input type="text" id="perk-search-bar" class="pip-search" placeholder="SEARCH ALL PERKS..." oninput="renderAllPerks()" style="margin-bottom:0; flex:1;">
@@ -336,6 +346,15 @@
             <input type="text" id="uni-armor-search-bar" class="pip-search" placeholder="SEARCH UNIQUE ARMOR..." oninput="searchUniqueArmor()">
             <div id="unique-armor-checklist"></div>
         </div>
+
+        <div id="tab-skilllog" class="tab-content scroll-v" style="display:none;">
+            <div class="skilllog-header">
+                <div class="skilllog-title">📋 SKILL ALLOCATION LOG</div>
+                <div class="skilllog-sub">PER-LEVEL SKILL POINT BREAKDOWN — FOR BUILD SHARING</div>
+            </div>
+            <div id="skilllog-empty" class="skilllog-empty">NO LEVEL-UP DATA RECORDED YET — LEVEL UP TO BEGIN TRACKING</div>
+            <div id="skilllog-table-wrap"></div>
+        </div>
     </section>
 
     <section>
@@ -350,9 +369,20 @@
         <div id="sync-status" style="font-size:0.6rem; text-align:right; opacity:0.6; margin-top:5px;">SYSTEM_SYNCED</div>
         
         <div class="credits-box">
-            <div class="sticky-note" id="sysop-note" style="display:block; background:#ff4; color:#000;">
-                !! STICKY NOTE !!<br>9:13AM, October 23, 2077,
-                HARDERCORE.EXE HAS BEEN ACTIVATED! GOD HELP US ALL! F.A.O FINALCATALYST - VAULT-TEC R&D
+            <div id="sticky-note-stack" style="position:relative; margin-bottom:10px;">
+                <div class="sticky-note doomsday-note" id="doomsday-note">
+                    !! CLASSIFIED !!<br>
+                    DOOMSDAY PROTOCOL — CODENAME: HARDESTCORE<br><br>
+                    IF YOU ARE READING THIS, THE UNTHINKABLE HAS OCCURRED.<br>
+                    VAULT-TEC CONTINGENCY ALPHA HAS BEEN TRIGGERED.<br>
+                    GOD HELP THE WASTELAND.<br>
+                    — DIRECTOR BREKKER, VAULT-TEC OVERSIGHT
+                </div>
+                <div class="sticky-note" id="sysop-note" onclick="stickyNoteClick()" title="(click me...)" style="display:block; background:#ff4; color:#000; cursor:pointer; position:relative; z-index:2;">
+                    !! STICKY NOTE !!<br>9:13AM, October 23, 2077,
+                    HARDERCORE.EXE HAS BEEN ACTIVATED! GOD HELP US ALL! F.A.O FINALCATALYST - VAULT-TEC R&D
+                    <span id="sticky-click-hint" style="display:block; font-size:0.6rem; opacity:0.4; margin-top:6px; text-align:right; font-weight:normal;">(click)</span>
+                </div>
             </div>
             <b>SOURCE: <a href="https://nuclearsunset.com" target="_blank" style="color:inherit;">NUCLEARSUNSET.COM</a></b><br>
             TEAM: DARKSOLARLEGEND, ORGASMICSNEEZE, DOKTORAKCEL, LIME, FINALCATALYST &amp; THE BOOHER.

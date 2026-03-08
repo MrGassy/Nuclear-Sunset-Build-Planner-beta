@@ -5,6 +5,8 @@ let skillPoints = { BARTER:0,'BIG GUNS':0,'ENERGY WEAPONS':0,EXPLOSIVES:0,GUNS:0
 let charLevel = 1;
 let showEligibleOnly = false;
 let _lvlupSession = {}, _lvlupPointsLeft = 0;
+let skillHistory = [];
+let _itTargetRow = null; // tracks which prog-row triggered IT modal // [{level, allocation:{skill:pts_spent}, gains:{skill:pts_gained}, tagged:[...], pointsTotal}]
 const sKeys = ["STR", "PER", "END", "CHA", "INT", "AGI", "LCK"];
 const skills = ["BARTER", "BIG GUNS", "ENERGY WEAPONS", "EXPLOSIVES", "GUNS", "LOCKPICK", "MEDICINE", "MELEE WEAPONS", "REPAIR", "SCIENCE", "SNEAK", "SPEECH", "SURVIVAL", "UNARMED"];
 
@@ -358,41 +360,191 @@ function renderImplants() {
     const limit = getNVImplantLimit();
     const count = getNVImplantCount();
     const header = document.getElementById('implants-limit-display');
-    if (header) header.textContent = `SPECIAL IMPLANTS: ${count} / ${special.END || 5} (END LIMIT) — BODY & BIG MT: UNLIMITED`;
+    if (header) header.textContent = `SPECIAL IMPLANTS: ${count} / ${limit} (END ${special.END} LIMIT) — BODY & BIG MT: UNLIMITED`;
 
-    // Group
     const groups = { special: [], body: [], bigtmt: [] };
-    IMPLANTS_DATA.forEach(imp => { groups[imp.cat].push(imp); });
+    IMPLANTS_DATA.forEach(imp => { if (groups[imp.cat]) groups[imp.cat].push(imp); });
 
-    const renderGroup = (title, items) => {
+    const groupLabels = { special: 'S.P.E.C.I.A.L. IMPLANTS', body: 'BODY IMPLANTS', bigtmt: 'BIG MT IMPLANTS' };
+
+    const renderGroup = (cat, items) => {
         if (!items.length) return '';
+        const atLimit = cat === 'special' && count >= limit;
         return `<div class="implant-group">
-            <div class="implant-group-title">${title}</div>
+            <div class="implant-group-title">${groupLabels[cat]}${cat === 'special' ? ` <span class="implant-slot-counter">${count}/${limit}</span>` : ''}</div>
+            <div class="implant-grid">
             ${items.map(imp => {
                 const idx = IMPLANTS_DATA.indexOf(imp);
                 const taken = !!implantsTaken[imp.name];
-                const canAdd = imp.cat !== 'special' || count < limit || taken;
-                const statLabel = imp.cat === 'special' && imp.stat ? ` (+1 ${imp.stat})` : '';
-                return `<div class="implant-item ${taken ? 'implant-taken' : ''} ${!canAdd && !taken ? 'implant-locked' : ''}" onclick="toggleImplantByIndex(${idx})">
-                    <div class="implant-check">${taken ? '☑' : '☐'}</div>
-                    <div class="implant-details">
-                        <div class="implant-name">${imp.name}${statLabel}</div>
-                        <div class="implant-desc">${imp.desc.slice(0,140)}${imp.desc.length>140?'...':''}</div>
+                const blocked = cat === 'special' && !taken && atLimit;
+                const statLabel = cat === 'special' && imp.stat ? `+1 ${imp.stat}` : '';
+                return `<div class="implant-item ${taken ? 'implant-taken' : ''} ${blocked ? 'implant-locked' : ''}" onclick="toggleImplantByIndex(${idx})" title="${imp.how || ''}">
+                    <div class="implant-item-top">
+                        <span class="implant-check">${taken ? '◉' : '○'}</span>
+                        <span class="implant-name">${imp.name}</span>
+                        ${statLabel ? `<span class="implant-stat-badge">${statLabel}</span>` : ''}
                     </div>
+                    <div class="implant-desc">${imp.desc}</div>
                 </div>`;
             }).join('')}
+            </div>
         </div>`;
     };
 
-    container.innerHTML = renderGroup('S.P.E.C.I.A.L. IMPLANTS', groups.special)
-        + renderGroup('BODY IMPLANTS', groups.body)
-        + renderGroup('BIG MT IMPLANTS', groups.bigtmt);
+    container.innerHTML = renderGroup('special', groups.special)
+        + renderGroup('body', groups.body)
+        + renderGroup('bigtmt', groups.bigtmt);
+}
+
+/* ===== PERK ZOOM MODAL ===== */
+function openPerkZoom(name, req, desc) {
+    document.getElementById('perk-zoom-name').textContent = name;
+    document.getElementById('perk-zoom-req').textContent = req ? 'REQ: ' + req : '';
+    document.getElementById('perk-zoom-desc').textContent = desc;
+    document.getElementById('perk-zoom-modal').style.display = 'flex';
+}
+
+// Clicked from PERK & TRAIT LOG overview panel
+function ovPerkClick(name, req, desc) {
+    openPerkZoom(name, req, desc);
+}
+
+/* ===== IMPLANT PICKER MODAL ===== */
+function openImplantModal() {
+    document.getElementById('implant-modal').style.display = 'flex';
+    document.getElementById('implant-modal-search').value = '';
+    renderImplantModalGrid('');
+}
+
+function closeImplantModal() {
+    document.getElementById('implant-modal').style.display = 'none';
+}
+
+function renderImplantModalGrid(search) {
+    const container = document.getElementById('implant-modal-grid');
+    const q = (search || '').toLowerCase();
+    const limit = getNVImplantLimit();
+    const count = getNVImplantCount();
+
+    const catLabels = { special: 'S.P.E.C.I.A.L. IMPLANTS', body: 'BODY IMPLANTS', bigtmt: 'BIG MT IMPLANTS' };
+    const catColors = { special: '#80d8ff', body: '#80ffb0', bigtmt: '#c0a0ff' };
+    const groups = { special: [], body: [], bigtmt: [] };
+    IMPLANTS_DATA.forEach(imp => { if (groups[imp.cat]) groups[imp.cat].push(imp); });
+
+    let html = '';
+    ['special', 'body', 'bigtmt'].forEach(cat => {
+        const items = groups[cat].filter(imp =>
+            !q || imp.name.toLowerCase().includes(q) || imp.desc.toLowerCase().includes(q)
+        );
+        if (!items.length) return;
+        html += `<div style="margin-bottom:14px;">
+            <div style="font-size:0.62rem; color:${catColors[cat]}; letter-spacing:0.12em; padding:4px 0 6px; border-bottom:1px solid rgba(128,216,255,0.15); margin-bottom:8px;">${catLabels[cat]}</div>`;
+        items.forEach(imp => {
+            const taken = !!implantsTaken[imp.name];
+            const statLabel = imp.cat === 'special' && imp.stat ? ` (+1 ${imp.stat})` : '';
+            const atLimit = imp.cat === 'special' && !taken && count >= limit;
+            const opacity = atLimit ? 'opacity:0.4;' : '';
+            const cursor = atLimit ? 'cursor:not-allowed;' : 'cursor:pointer;';
+            const takenStyle = taken ? `background:rgba(128,216,255,0.15); border-color:rgba(128,216,255,0.5);` : '';
+            html += `<div class="trait-card" style="${takenStyle}${opacity}${cursor}" onclick="${atLimit ? "document.getElementById('implant-limit-warning').style.display='block';setTimeout(()=>document.getElementById('implant-limit-warning').style.display='none',2500)" : `pickImplantFromModal('${imp.name.replace(/'/g,"\\'")}')` }">
+                <div class="trait-card-header">
+                    <span class="trait-card-name" style="color:${catColors[cat]};">${taken ? '☑ ' : '☐ '}${imp.name}${statLabel}</span>
+                    ${taken ? '<span style="font-size:0.6rem;color:#80ff80;margin-left:auto;">INSTALLED</span>' : ''}
+                    ${atLimit ? '<span style="font-size:0.6rem;color:#ff8080;margin-left:auto;">LIMIT REACHED</span>' : ''}
+                </div>
+                <div class="trait-card-desc">${imp.desc.slice(0,180)}${imp.desc.length>180?'...':''}</div>
+                <div class="trait-req" style="color:#888;margin-top:4px;font-size:0.58rem;">${imp.how.slice(0,120)}${imp.how.length>120?'...':''}</div>
+            </div>`;
+        });
+        html += '</div>';
+    });
+    container.innerHTML = html || '<div style="text-align:center;opacity:0.4;padding:24px;font-size:0.7rem;">NO IMPLANTS FOUND</div>';
+}
+
+function pickImplantFromModal(name) {
+    toggleImplant(name);
+    closeImplantModal();
+}
+
+/* ===== SKILL LOG ===== */
+function renderSkillLog() {
+    const wrap = document.getElementById('skilllog-table-wrap');
+    const empty = document.getElementById('skilllog-empty');
+    if (!wrap) return;
+
+    if (!skillHistory.length) {
+        if (empty) empty.style.display = 'block';
+        wrap.innerHTML = '';
+        return;
+    }
+    if (empty) empty.style.display = 'none';
+
+    // Calculate cumulative totals at each level
+    const cumulativeGains = {};
+    skills.forEach(s => { cumulativeGains[s] = 0; });
+
+    let html = `<div class="skilllog-summary">
+        <span>TOTAL LEVELS RECORDED: <b>${skillHistory.length}</b></span>
+        <span>CURRENT LEVEL: <b>${charLevel}</b></span>
+    </div>`;
+
+    // Build table
+    html += `<div class="skilllog-scroll">
+    <table class="skilllog-table">
+        <thead>
+            <tr>
+                <th class="skilllog-th-skill">SKILL</th>
+                ${skillHistory.map(e => `<th class="skilllog-th-lvl" title="Points budget: ${e.pointsTotal}">LV${e.level}</th>`).join('')}
+                <th class="skilllog-th-total">TOTAL<br>GAINED</th>
+            </tr>
+        </thead>
+        <tbody>`;
+
+    skills.forEach(s => {
+        let rowTotal = 0;
+        const cells = skillHistory.map(entry => {
+            const gain = entry.gains[s] || 0;
+            const isTagged = entry.tagged && entry.tagged.includes(s);
+            rowTotal += gain;
+            if (gain === 0) return `<td class="skilllog-cell skilllog-zero">—</td>`;
+            return `<td class="skilllog-cell skilllog-gain${isTagged ? ' skilllog-tagged' : ''}" title="${isTagged ? '★ TAGGED — 2pts gained per 1 spent' : ''}">${gain > 0 ? '+'+gain : gain}${isTagged ? '<span class="skilllog-star">★</span>' : ''}</td>`;
+        }).join('');
+
+        html += `<tr class="skilllog-row">
+            <td class="skilllog-skill-name">${s}</td>
+            ${cells}
+            <td class="skilllog-total-cell">${rowTotal > 0 ? '+'+rowTotal : '—'}</td>
+        </tr>`;
+    });
+
+    // Points budget row
+    html += `<tr class="skilllog-pts-row">
+        <td class="skilllog-skill-name" style="color:rgba(200,255,210,0.5); font-size:0.55rem;">PTS BUDGET</td>
+        ${skillHistory.map(e => `<td class="skilllog-cell" style="color:rgba(200,255,210,0.45); font-size:0.6rem;">${e.pointsTotal}</td>`).join('')}
+        <td class="skilllog-total-cell">—</td>
+    </tr>`;
+
+    html += `</tbody></table></div>`;
+
+    // Add a reset note
+    html += `<div style="font-size:0.58rem; opacity:0.35; text-align:center; margin-top:12px; letter-spacing:0.05em;">★ = TAGGED SKILL (1 PT SPENT = 2 PT GAINED) &nbsp;|&nbsp; LOG RESETS ON FULL BUILD RESET</div>`;
+
+    wrap.innerHTML = html;
 }
 
 /* ===== STARTING TRAITS ===== */
 function renderStartingTraitsList() {
     const container = document.getElementById('starting-traits-list');
     if (!container) return;
+    // Update HC counter
+    const counter = document.getElementById('hc-trait-counter');
+    if (counter) counter.textContent = `${startingTraits.length}/5`;
+    // Dim ADD button at limit in HC mode
+    const addBtn = document.querySelector('.cs-start-trait-btn');
+    if (addBtn && mode === 'hc') {
+        addBtn.style.opacity = startingTraits.length >= 5 ? '0.35' : '1';
+        addBtn.title = startingTraits.length >= 5 ? 'HARDERCORE LIMIT: 5 STARTING TRAITS MAX' : 'ADD STARTING TRAIT';
+    }
     if (startingTraits.length === 0) {
         container.innerHTML = '<div style="font-size:0.58rem; opacity:0.3; padding:6px 0; letter-spacing:1px;">NO STARTING TRAITS SELECTED</div>';
         return;
@@ -407,6 +559,11 @@ function renderStartingTraitsList() {
 function addStartingTrait(name) {
     // Avoid duplicates
     if (startingTraits.some(t => t.name === name)) { closeTraitModal(); return; }
+    // HC mode: max 5 starting traits
+    if (mode === 'hc' && startingTraits.length >= 5) {
+        closeTraitModal();
+        return;
+    }
     startingTraits.push({ name });
     renderStartingTraitsList();
     updateAll();
@@ -422,6 +579,12 @@ function removeStartingTrait(idx) {
 }
 
 function openStartingTraitModal() {
+    // HC mode: enforce 5 starting trait limit
+    if (mode === 'hc' && startingTraits.length >= 5) {
+        const el = document.getElementById('hc-trait-limit-warning');
+        if (el) { el.style.display = 'block'; setTimeout(() => el.style.display = 'none', 2500); }
+        return;
+    }
     _traitSlotId = '__starting__';
     document.getElementById('trait-modal').style.display = 'flex';
     document.getElementById('trait-modal-search').value = '';
@@ -638,6 +801,13 @@ function sanitizeImport(d) {
         clean.skillPoints[s] = (!isNaN(v) && v >= 0 && v <= 100) ? v : 0;
     });
     clean.charLevel = (typeof d.charLevel === 'number' && d.charLevel >= 1 && d.charLevel <= 50) ? Math.floor(d.charLevel) : 1;
+    clean.skillHistory = Array.isArray(d.skillHistory) ? d.skillHistory.slice(0, 50).map(e => ({
+        level: typeof e.level === 'number' ? e.level : 1,
+        allocation: (e.allocation && typeof e.allocation === 'object') ? Object.fromEntries(skills.map(s => [s, typeof e.allocation[s] === 'number' ? e.allocation[s] : 0])) : {},
+        gains: (e.gains && typeof e.gains === 'object') ? Object.fromEntries(skills.map(s => [s, typeof e.gains[s] === 'number' ? e.gains[s] : 0])) : {},
+        tagged: Array.isArray(e.tagged) ? e.tagged.filter(s => skills.includes(s)) : [],
+        pointsTotal: typeof e.pointsTotal === 'number' ? e.pointsTotal : 0
+    })) : [];
     return clean;
 }
 
@@ -648,6 +818,8 @@ function showTab(t) {
     document.getElementById('tab-'+t).style.display='block';
     document.getElementById('tab-btn-'+t).classList.add('active');
     if (t === 'perks') renderAllPerks();
+    if (t === 'skilllog') renderSkillLog();
+    if (t === 'prog') renderImplants();
 }
 
 /* ===== MODE & ORIGIN TOGGLES ===== */
@@ -662,6 +834,10 @@ function setMode(m, skipSave=false) {
     document.getElementById('sysop-note').style.display = m==='hc' ? 'block' : 'none';
     document.getElementById('m-std').classList.toggle('active', m==='std');
     document.getElementById('m-hc').classList.toggle('active', m==='hc');
+    // Reset add-trait button opacity when switching modes
+    const addBtn = document.querySelector('.cs-start-trait-btn');
+    if (addBtn) addBtn.style.opacity = '';
+    renderStartingTraitsList();
     renderProgression();
     // Restore as many perks as will fit in the new layout
     if (!skipSave && prevPerks.some(p => p[0])) {
@@ -829,6 +1005,7 @@ function buildPerkCard(p) {
         <div class="perk-desc">${p.desc}</div>
         <div class="perk-card-actions">
             <button class="action-btn" onclick="addPerkToBuild('${escapedName}','${escapedReq}',${isIT})">${addBtnLabel}</button>
+            <button class="action-btn perk-zoom-action" title="EXPAND DESCRIPTION" onclick="openPerkZoom('${escapedName}','${p.req.replace(/'/g,"\\'")}','${p.desc.replace(/'/g,"\\'")}')">⊕ ZOOM</button>
         </div>
     </div>`;
 }
@@ -841,11 +1018,7 @@ function addPerkToBuild(name, req, isIT) {
         const nameInput = row.querySelector('.prog-name-input');
         if (nameInput && !nameInput.value.trim()) {
             selectPerkInRow(row, name);
-            showTab('prog');
-            setTimeout(() => {
-                nameInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                nameInput.focus();
-            }, 80);
+            showPerkToast(name);
             return;
         }
     }
@@ -853,7 +1026,21 @@ function addPerkToBuild(name, req, isIT) {
     const extras = document.querySelectorAll('#extra-perk-list .prog-row');
     const last = extras[extras.length - 1];
     if (last) selectPerkInRow(last, name);
-    showTab('prog');
+    showPerkToast(name);
+}
+
+function showPerkToast(name) {
+    let toast = document.getElementById('perk-added-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'perk-added-toast';
+        toast.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:99999;background:var(--pip-bg-2);border:1px solid var(--pip-color);color:var(--pip-color);padding:10px 18px;font-size:0.7rem;font-family:var(--font-main);letter-spacing:1px;box-shadow:0 0 20px rgba(40,255,40,0.2);transition:opacity 0.4s;opacity:0;pointer-events:none;text-transform:uppercase;';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = '✓ PERK ADDED: ' + name;
+    toast.style.opacity = '1';
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 2200);
 }
 
 /* ===== LEVEL UP MODAL ===== */
@@ -934,14 +1121,27 @@ function lvlupAdjust(skill, delta) {
 
 function confirmLevelUp() {
     const tagged = getTaggedSkills();
+    const gains = {};
     skills.forEach(s => {
         const pts = _lvlupSession[s] || 0;
         const gain = tagged.has(s) ? pts * 2 : pts; // tagged: 1 spent = 2 gained
+        gains[s] = gain;
         skillPoints[s] = (skillPoints[s] || 0) + gain;
         // Hard cap: total skill must not exceed 100
         const maxPts = 100 - skillBase(s) - (tagged.has(s) ? 15 : 0);
         if (skillPoints[s] > maxPts) skillPoints[s] = Math.max(0, maxPts);
     });
+    // Record this level's allocation for the Skill Log
+    const totalPtsSpent = Object.values(_lvlupSession).reduce((a,b)=>a+b,0);
+    if (totalPtsSpent > 0 || true) {
+        skillHistory.push({
+            level: charLevel + 1,
+            allocation: Object.assign({}, _lvlupSession),
+            gains: gains,
+            tagged: Array.from(tagged),
+            pointsTotal: pointsPerLevel()
+        });
+    }
     charLevel++;
     closeLevelUpModal();
     updateAll();
@@ -961,7 +1161,8 @@ function showPerkLevelUpPrompt(lvl) {
 }
 
 /* ===== INTENSE TRAINING MODAL ===== */
-function openITModal(name, req) {
+function openITModal(name, req, sourceRow) {
+    _itTargetRow = sourceRow || null;
     const grid = document.getElementById('it-picker-grid');
     grid.innerHTML = '';
     sKeys.forEach(k => {
@@ -988,6 +1189,22 @@ function confirmIT(name, req, statKey) {
     if (special[statKey] < 10) special[statKey] += 1;
     closeITModal();
     const label = `${name} (+1 ${statKey})`;
+
+    // If we know which row triggered IT, just update its label in-place — no new row
+    if (_itTargetRow) {
+        const ni = _itTargetRow.querySelector('.prog-name-input');
+        if (ni) ni.value = label;
+        const notes = _itTargetRow.querySelector('.prog-notes-input');
+        if (notes && !notes.value) notes.value = req;
+        _itTargetRow = null;
+        updateAll();
+        reCheckAllPerkRows();
+        triggerAutosave();
+        showPerkToast(label);
+        return;
+    }
+
+    // Fallback: find first empty prog row
     const rows = document.querySelectorAll('#prog-list .prog-row');
     for (const row of rows) {
         const nameInput = row.querySelector('.prog-name-input');
@@ -995,9 +1212,8 @@ function confirmIT(name, req, statKey) {
             selectPerkInRow(row, name);
             nameInput.value = label;
             const ni = row.querySelector('.prog-notes-input'); if(ni) ni.value = req;
-            showTab('prog');
-            nameInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
             triggerAutosave();
+            showPerkToast(label);
             return;
         }
     }
@@ -1009,8 +1225,8 @@ function confirmIT(name, req, statKey) {
         last.querySelector('.prog-name-input').value = label;
         const ni = last.querySelector('.prog-notes-input'); if(ni) ni.value = req;
     }
-    showTab('prog');
     triggerAutosave();
+    showPerkToast(label);
 }
 
 /* Close modal on overlay click */
@@ -1323,14 +1539,37 @@ function updateAll() {
     const traitHTML = startingTraitHTML + levelTraitHTML || 'NONE';
     const ovT = document.getElementById('ov-traits'); if(ovT) ovT.innerHTML = traitHTML;
 
-    document.getElementById('ov-perks').innerHTML = Array.from(document.querySelectorAll('#prog-list .prog-row')).map(r => {
-        const lvl = r.querySelector('.lvl-tag').innerText;
-        const val = r.querySelector('.prog-name-input')?.value || '';
-        return val ? `<div class="ov-entry"><span>${val}</span><span style="opacity:0.6;">${lvl}</span></div>` : '';
-    }).join('') + Array.from(document.querySelectorAll('#extra-perk-list .prog-row')).map(r => {
-        const val = r.querySelector('.prog-name-input')?.value || '';
-        return val ? `<div class="ov-entry"><span>${val}</span><span style="opacity:0.6;">BONUS</span></div>` : '';
-    }).join('');
+    document.getElementById('ov-perks').innerHTML = (() => {
+        const levelPerks = Array.from(document.querySelectorAll('#prog-list .prog-row')).map(r => {
+            const lvl = r.querySelector('.lvl-tag')?.innerText || '';
+            const val = r.querySelector('.prog-name-input')?.value || '';
+            if (!val) return '';
+            const perk = PERKS_DATA.find(p => p.name.trim().toLowerCase() === val.trim().toLowerCase());
+            const trait = !perk && TRAITS_DATA.find(t => t.name.trim().toLowerCase() === val.trim().toLowerCase());
+            const clickable = perk || trait;
+            const onclick = clickable ? `onclick="ovPerkClick('${val.replace(/'/g,"\\'")}','${(perk||trait).req.replace(/'/g,"\\'")}','${(perk||trait).desc.replace(/'/g,"\\'")}')"` : '';
+            return `<div class="ov-entry ov-entry-clickable" ${onclick}><span>${val}</span><span style="opacity:0.5;">${lvl}</span></div>`;
+        }).join('');
+        const bonusPerks = Array.from(document.querySelectorAll('#extra-perk-list .prog-row')).map(r => {
+            const val = r.querySelector('.prog-name-input')?.value || '';
+            if (!val) return '';
+            const perk = PERKS_DATA.find(p => p.name.trim().toLowerCase() === val.trim().toLowerCase());
+            const trait = !perk && TRAITS_DATA.find(t => t.name.trim().toLowerCase() === val.trim().toLowerCase());
+            const onclick = (perk||trait) ? `onclick="ovPerkClick('${val.replace(/'/g,"\\'")}','${(perk||trait).req.replace(/'/g,"\\'")}','${(perk||trait).desc.replace(/'/g,"\\'")}' )"` : '';
+            return `<div class="ov-entry ov-entry-clickable" ${onclick}><span>${val}</span><span style="opacity:0.5; color:#a0cfff;">BONUS</span></div>`;
+        }).join('');
+        const rewardPerks = rewardPerksList.map(rp => {
+            const perk = PERKS_DATA.find(p => p.name.trim().toLowerCase() === rp.name.trim().toLowerCase());
+            const onclick = perk ? `onclick="ovPerkClick('${rp.name.replace(/'/g,"\\'")}','${perk.req.replace(/'/g,"\\'")}','${perk.desc.replace(/'/g,"\\'")}' )"` : '';
+            return `<div class="ov-entry ov-entry-clickable" ${onclick}><span>${rp.name}</span><span style="opacity:0.5; color:#ffd080;">REWARD</span></div>`;
+        }).join('');
+        const internalized = internalizedTraitsList.map(it => {
+            const trait = TRAITS_DATA.find(t => t.name.trim().toLowerCase() === it.name.trim().toLowerCase());
+            const onclick = trait ? `onclick="ovPerkClick('${it.name.replace(/'/g,"\\'")}','${trait.req.replace(/'/g,"\\'")}','${trait.desc.replace(/'/g,"\\'")}' )"` : '';
+            return `<div class="ov-entry ov-entry-clickable" ${onclick}><span>${it.name}</span><span style="opacity:0.5; color:#c8a0ff;">INT.</span></div>`;
+        }).join('');
+        return (levelPerks + bonusPerks + rewardPerks + internalized) || '<span style="opacity:0.3; font-size:0.65rem;">NONE YET</span>';
+    })();
 
     let gearHTML = Array.from(document.querySelectorAll('#weapon-list .gear-card')).map(c => {
         const ins = c.querySelectorAll('.gear-field-input');
@@ -1395,6 +1634,8 @@ function updateAll() {
             </div>`;
         }).join('');
     }
+    // Keep implant list in sync (limit changes when END changes)
+    renderImplants();
 }
 
 function mod(k, v) { special[k] += v; updateAll(); reCheckAllPerkRows(); triggerAutosave(); }
@@ -1680,6 +1921,17 @@ function selectPerkInRow(row, perkName) {
     descEl.textContent = perk.desc;
     info.style.display = 'block';
 
+    // Add zoom button if not already there
+    let zoomBtn = info.querySelector('.perk-zoom-btn');
+    if (!zoomBtn) {
+        zoomBtn = document.createElement('button');
+        zoomBtn.className = 'perk-zoom-btn';
+        zoomBtn.title = 'EXPAND TEXT';
+        zoomBtn.textContent = '⊕ ZOOM';
+        info.appendChild(zoomBtn);
+    }
+    zoomBtn.onclick = () => openPerkZoom(perk.name, perk.req, perk.desc);
+
     const multiRank = perk.ranks > 1;
     badge.textContent = multiRank ? `★ ${perk.ranks} RANKS` : `1 RANK`;
     badge.style.display = 'inline';
@@ -1690,9 +1942,9 @@ function selectPerkInRow(row, perkName) {
     // Check requirements against current level + SPECIAL
     checkPerkRequirements(row, perk);
 
-    // If Intense Training, trigger SPECIAL picker
+    // If Intense Training, trigger SPECIAL picker — pass the row so confirmIT can update it in-place
     if (perk.name.trim().toUpperCase() === 'INTENSE TRAINING') {
-        openITModal(perk.name, perk.req);
+        openITModal(perk.name, perk.req, row);
     }
     // If Tag!, prompt 4th skill selection
     if (perk.name.trim().toUpperCase() === 'TAG!') {
@@ -1847,7 +2099,8 @@ function collectData() {
         skillPoints, charLevel,
         implantsTaken, rewardPerksList, internalizedTraitsList,
         fourthTagSkill: _fourthTagSkill || null,
-        startingTraits: startingTraits
+        startingTraits: startingTraits,
+        skillHistory: skillHistory
     };
 }
 
@@ -1890,6 +2143,7 @@ function hydrate(d) {
     internalizedTraitsList = Array.isArray(d.internalizedTraitsList) ? d.internalizedTraitsList : [];
     _fourthTagSkill = d.fourthTagSkill || null;
     startingTraits = Array.isArray(d.startingTraits) ? d.startingTraits : [];
+    skillHistory = Array.isArray(d.skillHistory) ? d.skillHistory : [];
     setMode(d.mode, true);
     setOrigin(d.origin, true);
     const tI = document.querySelectorAll('#tag-area input');
@@ -2146,8 +2400,47 @@ function takePerkFromModal(idx) {
     if (banner) banner.style.display = 'none';
     _perkPickerLevel = null;
 
-    // Switch to progression tab
-    showTab('prog');
+    showPerkToast(perk.name);
+}
+
+/* ===== STICKY NOTE EASTER EGG ===== */
+let _stickyClicks = 0;
+let _stickyActive = false;
+
+function stickyNoteClick() {
+    if (_stickyActive) return; // prevent retriggering mid-animation
+    _stickyClicks++;
+    const note = document.getElementById('sysop-note');
+    const hint = document.getElementById('sticky-click-hint');
+
+    // Update hint text with countdown
+    const remaining = 5 - _stickyClicks;
+    if (hint && remaining > 0) {
+        hint.textContent = remaining <= 2 ? `(${remaining}...)` : `(click)`;
+        // Micro-jolt on each click
+        note.style.animation = 'none';
+        void note.offsetHeight; // reflow
+        note.style.animation = 'stickyJolt 0.25s ease forwards';
+    }
+
+    if (_stickyClicks >= 5) {
+        _stickyActive = true;
+        if (hint) hint.style.display = 'none';
+        // Stop HC flicker, then shake + fall
+        note.classList.add('sticky-falling');
+        note.style.animation = 'stickyShake 0.5s ease, stickyFall 0.6s 0.5s ease forwards';
+        setTimeout(() => {
+            note.style.display = 'none';
+            // Reveal doomsday note
+            const doom = document.getElementById('doomsday-note');
+            if (doom) {
+                doom.style.display = 'block';
+                doom.style.animation = 'doomReveal 0.5s ease forwards';
+            }
+            _stickyClicks = 0;
+            _stickyActive = false;
+        }, 1100);
+    }
 }
 
 /* ===== INITIALIZATION ===== */
@@ -2161,12 +2454,13 @@ window.onload = () => {
             const raw = JSON.parse(saved);
             const safe = sanitizeImport(raw);
             if (safe) hydrate(safe);
-            else { setMode('std', true); setOrigin('CW', true); }
+            else { setMode('std', true); setOrigin('CW', true); renderImplants(); }
         } catch(e) {
-            setMode('std', true); setOrigin('CW', true);
+            setMode('std', true); setOrigin('CW', true); renderImplants();
         }
     } else {
         setMode('std', true);
         setOrigin('CW', true);
+        renderImplants();
     }
 };
