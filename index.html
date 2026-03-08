@@ -27,7 +27,7 @@
                 <span>SKILL POINTS:</span>
                 <span class="lvlup-pts-num"><span id="lvlup-pts-left">0</span> / <span id="lvlup-pts-total">0</span></span>
             </div>
-            <div style="font-size:0.62rem;opacity:0.55;margin-top:3px;">★ = TAGGED SKILL — HIGHLIGHTED FOR REFERENCE (1 PT SPENT = 1 PT GAINED)</div>
+            <div style="font-size:0.62rem;opacity:0.55;margin-top:3px;">★ = TAGGED SKILL — HIGHLIGHTED FOR REFERENCE (1 PT SPENT = 2 PT GAINED)</div>
         </div>
         <div id="lvlup-skill-grid" class="lvlup-skill-grid"></div>
         <div class="lvlup-actions">
@@ -76,6 +76,38 @@
     <div id="internalized-modal-grid" style="padding:0 16px 16px;"></div>
   </div>
 </div>
+
+<!-- TAG! SKILL PICKER MODAL -->
+<div class="modal-overlay" id="tag-pick-modal" style="display:none; align-items:center; justify-content:center;">
+  <div class="modal-box" style="max-width:480px; width:95vw;">
+    <h2 style="color:var(--pip-color); margin-bottom:6px;">TAG! — SELECT 4TH SKILL</h2>
+    <p style="font-size:0.68rem; opacity:0.6; margin-bottom:12px;">The Tag! perk grants a 4th tag skill with doubled skill point progression. Select the skill you want to tag.</p>
+    <div id="tag-pick-grid" style="display:flex; flex-direction:column; gap:4px; max-height:60vh; overflow-y:auto;"></div>
+    <button class="modal-cancel-btn" onclick="closeTagModal()" style="margin-top:12px;">CANCEL</button>
+  </div>
+</div>
+
+<!-- PERK PICKER MODAL (LEVEL UP) -->
+<div class="modal-overlay" id="perk-picker-modal" style="display:none; align-items:flex-start; padding-top:3vh;">
+  <div class="lvlup-box perk-picker-box" style="max-width:960px; width:96vw; max-height:92vh; display:flex; flex-direction:column; overflow:hidden;">
+    <div class="lvlup-header" style="flex-shrink:0;">
+      <div>
+        <span id="perk-picker-title" style="font-size:1rem; letter-spacing:0.15em; color:var(--pip-color);">SELECT YOUR PERK</span>
+        <span id="perk-picker-count" style="font-size:0.6rem; opacity:0.5; margin-left:12px;"></span>
+      </div>
+      <button class="lvlup-close" onclick="closePerkPickerModal()">✕</button>
+    </div>
+    <div style="padding:8px 16px; flex-shrink:0; border-bottom:1px solid rgba(100,255,100,0.15);">
+      <input type="text" id="perk-picker-search" class="pip-search" placeholder="SEARCH PERKS BY NAME OR EFFECT..."
+        oninput="renderPerkPickerGrid()" style="width:100%; box-sizing:border-box;">
+    </div>
+    <div id="perk-picker-grid" class="perk-picker-grid" style="flex:1; overflow-y:auto; padding:12px 16px;"></div>
+    <div style="padding:10px 16px; border-top:1px solid rgba(100,255,100,0.15); flex-shrink:0; display:flex; justify-content:flex-end;">
+      <button class="action-btn" style="opacity:0.7;" onclick="closePerkPickerModal()">SKIP FOR NOW →</button>
+    </div>
+  </div>
+</div>
+
 <div class="wrapper">
     <header>
         <div class="hc-alert-bar" id="hc-banner">HARDERCORE_OVERRIDE_ACTIVE</div>
@@ -142,7 +174,10 @@
                 <div class="char-sheet-col">
                     <div class="cs-header">
                         <span class="cs-label" id="trait-header">TRAITS</span>
-                        <button class="cs-add-btn" onclick="openTraitModal(null)">+ ADD</button>
+                        <div class="cs-trait-btns">
+                            <button class="cs-add-btn cs-start-trait-btn" title="ADD STARTING TRAIT (NO LIMIT)" onclick="openStartingTraitModal()">◈ STARTING</button>
+                            <button class="cs-add-btn" title="ADD LEVEL-UP TRAIT SLOT" onclick="openTraitModal(null)">+ LEVEL</button>
+                        </div>
                     </div>
                     <div id="trait-list" style="display:none;"></div>
                     <div id="ov-traits-inline"></div>
@@ -177,45 +212,65 @@
         </div>
 
         <div id="tab-prog" class="tab-content scroll-v" style="display:none;">
-            <!-- LEVEL PROGRESSION (perks + milestone traits) -->
+
+            <!-- LEGEND BAR -->
+            <div class="prog-legend-bar">
+                <span class="prog-legend-item pleg-perk">■ PERK</span>
+                <span class="prog-legend-item pleg-trait">■ LEVEL TRAIT SLOT</span>
+                <span class="prog-legend-item pleg-start-trait">■ STARTING TRAIT</span>
+                <span class="prog-legend-item pleg-bonus">■ BONUS PERK</span>
+                <span class="prog-legend-item pleg-reward">■ REWARD PERK</span>
+                <span class="prog-legend-item pleg-int">■ INTERNALIZED TRAIT</span>
+                <span class="prog-legend-item pleg-implant">■ IMPLANT</span>
+            </div>
+
+            <!-- STARTING TRAITS -->
+            <div class="prog-section-label plab-trait">
+                <span class="prog-section-icon">◈</span> STARTING TRAITS
+                <span class="prog-section-sub">PRE-GAME TRAITS — NO LIMIT, DON'T USE LEVEL SLOTS</span>
+                <button class="prog-section-btn psbtn-trait" onclick="openStartingTraitModal()">+ ADD</button>
+            </div>
+            <div id="starting-traits-list" class="starting-traits-wrap"></div>
+
+            <!-- LEVEL PERKS + TRAIT SLOTS -->
+            <div class="prog-section-label plab-perk">
+                <span class="prog-section-icon">⬆</span> LEVEL PROGRESSION
+                <span class="prog-section-sub">PERKS &amp; TRAIT MILESTONES — STARTING FROM LEVEL 2</span>
+            </div>
             <div id="prog-list" class="prog-grid"></div>
 
             <!-- BONUS PERKS -->
-            <div class="prog-section-block" style="margin-top:16px;border-top:1px solid rgba(100,200,120,0.15);padding-top:14px;">
-                <div class="prog-section-hdr">
-                    <h2 class="prog-section-title">BONUS PERKS</h2>
-                    <button class="action-btn prog-hdr-btn" onclick="addExtraPerk()">+ ADD</button>
-                </div>
-                <div id="extra-perk-list" class="prog-grid"></div>
+            <div class="prog-section-label plab-bonus">
+                <span class="prog-section-icon">+</span> BONUS PERKS
+                <span class="prog-section-sub">EXTRA PERKS OUTSIDE LEVEL PROGRESSION</span>
+                <button class="prog-section-btn" onclick="addExtraPerk()">+ ADD</button>
             </div>
+            <div id="extra-perk-list" class="prog-grid"></div>
 
             <!-- REWARD PERKS -->
-            <div class="prog-section-block" style="margin-top:16px;border-top:1px solid rgba(255,180,50,0.2);padding-top:14px;">
-                <div class="prog-section-hdr">
-                    <h2 class="prog-section-title" style="color:#ffd080;">REWARD PERKS</h2>
-                    <button class="action-btn prog-hdr-btn" onclick="openRewardPerkSearch()" style="border-color:rgba(255,180,50,0.4);color:#ffd080;">+ ADD</button>
-                </div>
-                <div id="reward-perks-list" class="prog-grid"></div>
+            <div class="prog-section-label plab-reward">
+                <span class="prog-section-icon">★</span> REWARD PERKS
+                <span class="prog-section-sub">QUEST &amp; CHALLENGE REWARDS</span>
+                <button class="prog-section-btn psbtn-reward" onclick="openRewardPerkSearch()">+ ADD</button>
             </div>
+            <div id="reward-perks-list" class="prog-grid"></div>
 
             <!-- INTERNALIZED TRAITS -->
-            <div class="prog-section-block" style="margin-top:16px;border-top:1px solid rgba(150,80,255,0.2);padding-top:14px;">
-                <div class="prog-section-hdr">
-                    <h2 class="prog-section-title" style="color:#c8a0ff;">INTERNALIZED TRAITS</h2>
-                    <button class="action-btn prog-hdr-btn" onclick="openInternalizedModal()" style="border-color:rgba(150,80,255,0.4);color:#c8a0ff;">+ ADD</button>
-                </div>
-                <div id="internalized-traits-list" class="prog-grid"></div>
+            <div class="prog-section-label plab-int">
+                <span class="prog-section-icon">◈</span> INTERNALIZED TRAITS
+                <span class="prog-section-sub">PERMANENT TRAIT BONUSES</span>
+                <button class="prog-section-btn psbtn-int" onclick="openInternalizedModal()">+ ADD</button>
             </div>
+            <div id="internalized-traits-list" class="prog-grid"></div>
 
             <!-- IMPLANTS -->
-            <div class="prog-section-block" style="margin-top:16px;border-top:1px solid rgba(100,180,255,0.2);padding-top:14px;padding-bottom:20px;">
-                <div class="prog-section-hdr">
-                    <h2 class="prog-section-title" style="color:#80c8ff;">IMPLANTS</h2>
-                    <span id="implants-limit-display" style="font-size:0.62rem;color:#80c8ff;opacity:0.75;letter-spacing:0.07em;">NV CLINIC: 0 / 5 (END LIMIT)</span>
-                </div>
-                <div id="implant-limit-warning" style="display:none;background:rgba(255,80,80,0.12);border:1px solid rgba(255,80,80,0.35);color:#ff8080;padding:5px 10px;font-size:0.68rem;margin-bottom:8px;letter-spacing:0.04em;">⚠ IMPLANT LIMIT REACHED — INCREASE ENDURANCE OR REMOVE AN IMPLANT</div>
-                <div id="implants-list"></div>
+            <div class="prog-section-label plab-implant">
+                <span class="prog-section-icon">⚕</span> IMPLANTS
+                <span class="prog-section-sub" id="implants-limit-display">SPECIAL IMPLANTS: 0 / 5 (END LIMIT) — BODY &amp; BIG MT: UNLIMITED</span>
             </div>
+            <div id="implant-limit-warning" style="display:none; background:rgba(255,80,80,0.12); border-left:3px solid rgba(255,80,80,0.6); color:#ff8080; padding:8px 14px; font-size:0.68rem; margin:0 0 8px; letter-spacing:0.04em;">⚠ SPECIAL IMPLANT LIMIT REACHED — INCREASE ENDURANCE TO INSTALL MORE</div>
+            <div id="implants-list"></div>
+
         </div>
 
         <div id="tab-perks" class="tab-content scroll-v" style="display:none;">
@@ -291,6 +346,7 @@
             <input type="file" id="import-file" style="display:none" onchange="importJSON(event)">
         </div>
         <textarea id="user-notes" placeholder="--- INPUT LOG DATA ---"></textarea>
+            <button onclick="randomizeBuild()" class="randomize-btn">🎲 RANDOMIZE BUILD</button>
         <div id="sync-status" style="font-size:0.6rem; text-align:right; opacity:0.6; margin-top:5px;">SYSTEM_SYNCED</div>
         
         <div class="credits-box">
@@ -299,7 +355,7 @@
                 HARDERCORE.EXE HAS BEEN ACTIVATED! GOD HELP US ALL! F.A.O FINALCATALYST - VAULT-TEC R&D
             </div>
             <b>SOURCE: <a href="https://nuclearsunset.com" target="_blank" style="color:inherit;">NUCLEARSUNSET.COM</a></b><br>
-            TEAM: DARKSOLARLEGEND, ORGASMICSNEEZE, DOKTORAKCEL, LIME, FINALCATALYST.
+            TEAM: DARKSOLARLEGEND, ORGASMICSNEEZE, DOKTORAKCEL, LIME, FINALCATALYST &amp; THE BOOHER.
             <div style="font-size: 0.65rem; border-top:1px dotted var(--pip-color); margin-top:5px; padding-top:4px;"><b>CREATED AND MAINTAINED BY GASSY</b></div>
         </div>
     </section>
